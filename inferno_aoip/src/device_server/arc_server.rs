@@ -58,7 +58,10 @@ pub async fn run_server(
     if request.opcode2().read() == 0 {
       match request.opcode1().read() {
         channels_and_flows_count::OPCODE => {
-          let total_channels_wtf = self_info.tx_channels.len() + self_info.rx_channels.len(); // ??? not actually total number of channels but in some devices it is
+          // RX channels are only listed once a subscriber exists (see get_receive_channels),
+          // so don't advertise channels we would then answer with an empty page
+          let rx_channels_count = if subscriber.is_some() { self_info.rx_channels.len() } else { 0 };
+          let total_channels_wtf = self_info.tx_channels.len() + rx_channels_count; // ??? not actually total number of channels but in some devices it is
           let response = channels_and_flows_count::Response {
             unknown1_0: 0,
             flags2: channels_and_flows_count::Flags2 {
@@ -67,7 +70,7 @@ pub async fn run_server(
               ..Default::default()
             },
             tx_channels_count: self_info.tx_channels.len().try_into().unwrap(),
-            rx_channels_count: self_info.rx_channels.len().try_into().unwrap(),
+            rx_channels_count: rx_channels_count.try_into().unwrap(),
             unknown2_4: 4, // or 1
             max_channels_in_flow: MAX_CHANNELS_IN_FLOW
               .min(self_info.tx_channels.len().try_into().unwrap()), // or 8
